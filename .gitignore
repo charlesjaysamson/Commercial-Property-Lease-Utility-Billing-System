@@ -1,0 +1,11 @@
+# Build output
+target/
+out/
+
+# Local database and exported reports
+*.db
+reports/
+
+# IDE files
+.idea/
+*.iml
