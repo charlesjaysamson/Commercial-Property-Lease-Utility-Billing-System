@@ -2,10 +2,12 @@
 target/
 out/
 
-# Local database and exported reports
-*.db
+# Exported reports
 reports/
 
 # IDE files
 .idea/
 *.iml
+
+# NOTE: lease_billing.db is intentionally NOT ignored.
+# The SQLite database must stay in the repository.
