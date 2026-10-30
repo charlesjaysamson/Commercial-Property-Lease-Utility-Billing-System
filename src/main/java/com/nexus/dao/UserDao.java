@@ -13,6 +13,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -113,6 +114,25 @@ public class UserDao {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, status);
             ps.setInt(2, userId);
+            return ps.executeUpdate() == 1;
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Changes the role and status of one user (used by the Administrator).
+     * Both values are converted to UPPER CASE before they go to the database,
+     * so "active" and "ACTIVE" are saved the same way.
+     */
+    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+        String sql = "UPDATE users SET roles = ?, status = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newRole.toUpperCase(Locale.ROOT));
+            ps.setString(2, newStatus.toUpperCase(Locale.ROOT));
+            ps.setInt(3, userId);
             return ps.executeUpdate() == 1;
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
