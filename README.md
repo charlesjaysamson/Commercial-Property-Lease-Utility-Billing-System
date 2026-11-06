@@ -3,7 +3,7 @@ Commercial Property Lease & Utility Billing System (console app, Java 17 + SQLit
 
 ## Project structure
 ```
-src/main/java/com/nexus/
+src/main/java/com/scc/
   Main.java                      single entry point
   dao/    DatabaseConnection     opens SQLite, PRAGMA foreign_keys = ON on every connection
           DatabaseInitializer    creates all tables before the menu starts
@@ -30,3 +30,13 @@ lease_billing.db                 the SQLite database (kept in the repository)
 - BILLING_STAFF: billing, payments, reports
 
 New accounts start as PENDING until an Administrator approves them.
+
+## Audit log
+Every key action is saved in the `activity_logs` table through `ActivityLogDao.logAction(...)`:
+USER_REGISTERED, USER_APPROVED, USER_UPDATED, PROPERTY_ADDED, PROPERTY_REMOVED, PROPERTY_RESTORED,
+TENANT_ADDED, TENANT_UPDATED, TENANT_REMOVED, TENANT_RESTORED, LEASE_CREATED, LEASE_UPDATED,
+LEASE_ENDED, BILL_GENERATED, BILL_PROCESSED.
+The Administrator opens them from "View System Audit Logs" (all logs, or filtered by User ID).
+
+## Passwords
+Passwords are stored exactly as typed so they can be read in the `users` table (school project only).
