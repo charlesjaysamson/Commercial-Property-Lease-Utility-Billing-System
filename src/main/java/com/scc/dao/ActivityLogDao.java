@@ -10,29 +10,44 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Writes and reads the activity_logs table (System Audit Log).
+ * The ONLY class that contains SQL for the activity_logs table (System Audit Log).
  * Every query uses a parameterized PreparedStatement.
+ *
+ * Columns: id, user_id, action_type, description, timestamp
  */
 public class ActivityLogDao {
 
+    private static final String INSERT =
+            "INSERT INTO activity_logs (user_id, action_type, description) VALUES (?, ?, ?)";
+
     private static final String SELECT =
-            "SELECT a.log_id, a.user_id, u.username, a.action, a.description, a.log_timestamp "
+            "SELECT a.id, a.user_id, u.username, a.action_type, a.description, a.timestamp "
                     + "FROM activity_logs a JOIN users u ON a.user_id = u.id ";
 
-    // Newest first. log_id breaks ties for entries written in the same second.
-    private static final String NEWEST_FIRST = "ORDER BY a.log_timestamp DESC, a.log_id DESC";
+    // Newest first. id breaks ties for entries written in the same second.
+    private static final String NEWEST_FIRST = "ORDER BY a.timestamp DESC, a.id DESC";
 
-    /** Inserts one new log entry. */
+    /** Inserts one new log entry (opens its own connection). */
     public void logAction(int userId, String actionType, String description) {
-        String sql = "INSERT INTO activity_logs (user_id, action, description) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            logAction(conn, userId, actionType, description);
+        } catch (SQLException e) {
+            System.out.println("Could not write activity log: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Inserts one new log entry using a connection that is already open.
+     * Other DAOs use this inside their own transaction, so the change and its
+     * log entry are saved together (or rolled back together).
+     */
+    public void logAction(Connection conn, int userId, String actionType, String description)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(INSERT)) {
             ps.setInt(1, userId);
             ps.setString(2, actionType);
             ps.setString(3, description);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            System.out.println("Could not write activity log: " + e.getMessage());
         }
     }
 
@@ -55,9 +70,9 @@ public class ActivityLogDao {
             }
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    logs.add(new ActivityLog(rs.getInt("log_id"), rs.getInt("user_id"),
-                            rs.getString("username"), rs.getString("action"),
-                            rs.getString("description"), rs.getString("log_timestamp")));
+                    logs.add(new ActivityLog(rs.getInt("id"), rs.getInt("user_id"),
+                            rs.getString("username"), rs.getString("action_type"),
+                            rs.getString("description"), rs.getString("timestamp")));
                 }
             }
         } catch (SQLException e) {

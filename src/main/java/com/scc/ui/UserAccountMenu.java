@@ -1,6 +1,5 @@
 package com.scc.ui;
 
-import com.scc.dao.ActivityLogDao;
 import com.scc.dao.UserDao;
 import com.scc.model.User;
 
@@ -15,7 +14,6 @@ public class UserAccountMenu {
     private final User admin;
     private final UserDao userDao;      // the ONE shared UserDao from Main
     private final Scanner scanner;      // the ONE shared Scanner from Main
-    private final ActivityLogDao logDao = new ActivityLogDao();
 
     public UserAccountMenu(User admin, UserDao userDao, Scanner scanner) {
         this.admin = admin;
@@ -96,15 +94,13 @@ public class UserAccountMenu {
         }
         User target = list.get(n - 1);
 
-        if (userDao.updateStatus(target.id(), toStatus)) {
-            boolean approval = fromStatus.equals("PENDING") && toStatus.equals("ACTIVE");
-            if (approval) {
-                logDao.logAction(admin.id(), "USER_APPROVED", admin.actor() + " approved account for User ID "
-                        + target.id() + " (" + target.username() + ")");
-            } else {
-                logDao.logAction(admin.id(), "USER_UPDATED", admin.actor() + " changed status of User "
-                        + target.id() + " (" + target.username() + ") to " + toStatus);
-            }
+        boolean approval = fromStatus.equals("PENDING") && toStatus.equals("ACTIVE");
+        // The DAO changes the account AND writes the audit log entry.
+        boolean saved = approval
+                ? userDao.approveUser(admin, target)
+                : userDao.updateStatus(admin, target, toStatus);
+
+        if (saved) {
             System.out.println("[OK] " + target.username() + " is now " + toStatus + ".");
         } else {
             System.out.println("[!] Could not update the account.");

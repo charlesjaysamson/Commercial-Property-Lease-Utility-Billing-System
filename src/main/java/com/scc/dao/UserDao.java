@@ -141,32 +141,80 @@ public class UserDao {
                 + "WHERE status = ? ORDER BY id", status);
     }
 
-    public boolean updateStatus(int userId, String status) {
-        String sql = "UPDATE users SET status = ? WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status);
-            ps.setInt(2, userId);
-            return ps.executeUpdate() == 1;
-        } catch (SQLException e) {
-            System.out.println("Database error: " + e.getMessage());
-            return false;
-        }
+    private final ActivityLogDao logDao = new ActivityLogDao();
+
+    /**
+     * Approves a PENDING account (status becomes ACTIVE) and writes the audit log
+     * entry in the same transaction.
+     * Log example: "Administrator [1] approved User [2] (samson)"
+     */
+    public boolean approveUser(User admin, User target) {
+        String sql = "UPDATE users SET status = 'ACTIVE' WHERE id = ? AND status = 'PENDING'";
+        String description = admin.actor() + " approved User [" + target.id() + "] (" + target.username() + ")";
+        return updateAndLog(sql, ps -> ps.setInt(1, target.id()),
+                admin.id(), "USER_APPROVED", description);
     }
 
     /**
-     * Changes the role and status of one user (used by the Administrator).
+     * Changes only the status of an account (deactivate / reactivate) and logs it.
+     * Log example: "Administrator [1] changed status of User [2] (samson) to INACTIVE"
+     */
+    public boolean updateStatus(User admin, User target, String status) {
+        String sql = "UPDATE users SET status = ? WHERE id = ?";
+        String description = admin.actor() + " changed status of User [" + target.id() + "] ("
+                + target.username() + ") to " + status;
+        return updateAndLog(sql, ps -> {
+            ps.setString(1, status);
+            ps.setInt(2, target.id());
+        }, admin.id(), "USER_UPDATED", description);
+    }
+
+    /**
+     * Changes the role and status of one user (used by the Administrator) and logs it.
      * Both values are converted to UPPER CASE before they go to the database,
      * so "active" and "ACTIVE" are saved the same way.
+     * Log example: "Administrator [1] updated User [3] (brent): Role changed to
+     * PROPERTY_MANAGER, Status changed to ACTIVE"
      */
-    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+    public boolean updateUserRoleAndStatus(User admin, User target, String newRole, String newStatus) {
+        String role = newRole.toUpperCase(Locale.ROOT);
+        String status = newStatus.toUpperCase(Locale.ROOT);
         String sql = "UPDATE users SET roles = ?, status = ? WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, newRole.toUpperCase(Locale.ROOT));
-            ps.setString(2, newStatus.toUpperCase(Locale.ROOT));
-            ps.setInt(3, userId);
-            return ps.executeUpdate() == 1;
+        String description = admin.actor() + " updated User [" + target.id() + "] (" + target.username()
+                + "): Role changed to " + role + ", Status changed to " + status;
+        return updateAndLog(sql, ps -> {
+            ps.setString(1, role);
+            ps.setString(2, status);
+            ps.setInt(3, target.id());
+        }, admin.id(), "USER_UPDATED", description);
+    }
+
+    /** Sets the parameters of one PreparedStatement. */
+    private interface ParamSetter {
+        void set(PreparedStatement ps) throws SQLException;
+    }
+
+    /**
+     * Runs ONE update and, if exactly one row changed, writes the audit log entry
+     * on the same connection. If the log cannot be written, the update is rolled back.
+     */
+    private boolean updateAndLog(String sql, ParamSetter setter,
+                                 int actorId, String actionType, String description) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                setter.set(ps);
+                if (ps.executeUpdate() != 1) {
+                    conn.rollback();
+                    return false;
+                }
+                logDao.logAction(conn, actorId, actionType, description);
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
             return false;

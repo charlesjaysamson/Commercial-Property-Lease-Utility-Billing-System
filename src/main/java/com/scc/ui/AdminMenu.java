@@ -132,9 +132,8 @@ public class AdminMenu {
         }
 
         // Step 4: save
-        if (userDao.updateUserRoleAndStatus(target.id(), newRole, newStatus)) {
-            logDao.logAction(user.id(), "USER_UPDATED", user.actor() + " changed role of User " + target.id()
-                    + " (" + target.username() + ") to " + newRole + " and status to " + newStatus);
+        // The DAO changes the user AND writes the audit log entry.
+        if (userDao.updateUserRoleAndStatus(user, target, newRole, newStatus)) {
             System.out.println();
             System.out.println("[OK] " + target.username() + " is now " + newRole + " / " + newStatus + ".");
         } else {
@@ -224,8 +223,8 @@ public class AdminMenu {
         for (ActivityLog log : logs) {
             // A long description continues on the next line(s) inside its own column.
             List<String> lines = wrapText(log.description(), 35);
-            System.out.printf(format, log.logId(), log.userId(),
-                    InputHelper.cut(log.action(), 18), lines.get(0), log.logTimestamp());
+            System.out.printf(format, log.id(), log.userId(),
+                    InputHelper.cut(log.actionType(), 18), lines.get(0), log.timestamp());
             for (int i = 1; i < lines.size(); i++) {
                 System.out.printf(format, "", "", "", lines.get(i), "");
             }

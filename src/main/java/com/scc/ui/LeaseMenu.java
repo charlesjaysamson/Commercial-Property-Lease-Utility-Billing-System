@@ -156,9 +156,7 @@ public class LeaseMenu {
             return;
         }
 
-        if (leaseDao.createLease(property.propertyId(), tenant.tenantId(), start, end, rent)) {
-            logDao.logAction(user.id(), "LEASE_CREATED", user.actor() + " created lease: " + tenant.businessName()
-                    + " -> " + property.propertyName() + " (" + InputHelper.peso(rent) + "/month)");
+        if (leaseDao.createLease(user, property.propertyId(), tenant.tenantId(), start, end, rent)) {
             System.out.println();
             System.out.println("[OK] Lease created. " + property.propertyName() + " is now OCCUPIED.");
         } else {
@@ -240,9 +238,7 @@ public class LeaseMenu {
             System.out.println("[!] Cancelled.");
             return;
         }
-        if (leaseDao.endLease(lease.leaseId(), lease.propertyId(), newStatus)) {
-            logDao.logAction(user.id(), "LEASE_ENDED", user.actor() + " ended lease of " + lease.businessName() + " (" + lease.propertyName()
-                    + ") status changed to " + newStatus);
+        if (leaseDao.endLease(user, lease.leaseId(), lease.propertyId(), newStatus)) {
             System.out.println();
             System.out.println("[OK] Lease is now " + newStatus + ". " + lease.propertyName() + " is AVAILABLE again.");
         } else {

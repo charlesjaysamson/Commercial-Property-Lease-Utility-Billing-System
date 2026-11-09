@@ -140,7 +140,21 @@ public class Authentication {
 
             Optional<User> found = userDao.login(username, password);
             if (found.isPresent()) {
-                routeToMenu(found.get());     // returns when the user logs out
+                User user = found.get();
+
+                if (user.status().equals("INACTIVE")) {
+                    System.out.println();
+                    System.out.println("[!] This account has been deactivated. Please contact the Administrator.");
+                    InputHelper.pause(scanner);
+                    return;
+                }
+
+                // Audit log: "User [username] (ID: [id]) logged in."
+                logDao.logAction(user.id(), "LOGIN",
+                        "User " + user.username() + " (ID: " + user.id() + ") logged in.");
+
+                routeToMenu(user);            // returns when the user logs out
+                logout(user);
                 return;
             }
 
@@ -157,15 +171,17 @@ public class Authentication {
         InputHelper.pause(scanner);
     }
 
+    // ------------------------------------------------------------------
+    // Logout: runs when the user leaves their menu (or is logged out right away)
+    // ------------------------------------------------------------------
+    private void logout(User user) {
+        // Audit log: "User [username] (ID: [id]) logged out."
+        logDao.logAction(user.id(), "LOGOUT",
+                "User " + user.username() + " (ID: " + user.id() + ") logged out.");
+    }
+
     // Sends the user straight to the menu that belongs to their role.
     private void routeToMenu(User user) {
-        if (user.status().equals("INACTIVE")) {
-            System.out.println();
-            System.out.println("[!] This account has been deactivated. Please contact the Administrator.");
-            InputHelper.pause(scanner);
-            return;
-        }
-
         System.out.println();
         System.out.println("[OK] Login successful.");
 
