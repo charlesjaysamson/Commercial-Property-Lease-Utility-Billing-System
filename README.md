@@ -12,7 +12,7 @@ src/main/java/com/scc/
   ui/     Authentication         register, login, and routing by role
           AdminMenu, PropertyManagerMenu, BillingStaffMenu    one menu per role
           PropertyMenu, TenantMenu, LeaseMenu, BillingMenu, ReportMenu,
-          UserAccountMenu, LogMenu, DashboardView, InputHelper
+          UserAccountMenu, DashboardView, InputHelper
 lease_billing.db                 the SQLite database (kept in the repository)
 ```
 
@@ -32,11 +32,20 @@ lease_billing.db                 the SQLite database (kept in the repository)
 New accounts start as PENDING until an Administrator approves them.
 
 ## Audit log
-Every key action is saved in the `activity_logs` table through `ActivityLogDao.logAction(...)`:
-USER_REGISTERED, USER_APPROVED, USER_UPDATED, PROPERTY_ADDED, PROPERTY_REMOVED, PROPERTY_RESTORED,
-TENANT_ADDED, TENANT_UPDATED, TENANT_REMOVED, TENANT_RESTORED, LEASE_CREATED, LEASE_UPDATED,
-LEASE_ENDED, BILL_GENERATED, BILL_PROCESSED.
-The Administrator opens them from "View System Audit Logs" (all logs, or filtered by User ID).
+Table `activity_logs` (id, user_id, action_type, description, timestamp).
+`user_id` references `users(id)` with ON DELETE CASCADE. All SQL for it lives in `dao/ActivityLogDao.java`
+and every query is a parameterized `PreparedStatement`. An older database is upgraded automatically on
+start (`DatabaseInitializer`) and keeps all of its existing log rows.
 
-## Passwords
-Passwords are stored exactly as typed so they can be read in the `users` table (school project only).
+The 4 required triggers:
+
+| # | Event | Where it is logged | Log text |
+|---|-------|--------------------|----------|
+| 1 | Login / Logout | `ui/Authentication.java` -> `login()` / `logout()` | `User admin (ID: 1) logged in.` / `... logged out.` |
+| 2 | Account approved / role-status edit | `dao/UserDao.java` -> `approveUser()` / `updateUserRoleAndStatus()` | `Administrator [1] approved User [2] (samson)` / `... Role changed to PROPERTY_MANAGER, Status changed to ACTIVE` |
+| 3 | Lease creation | `dao/LeaseDao.java` -> `createLease()` | `Administrator [1] created lease: Tech Hub -> Unit A01 (₱25,000.00/month)` |
+| 4 | Lease ends (Expired / Terminated) | `dao/LeaseDao.java` -> `endLease()` | `Administrator [1] updated Lease #1 (Tech Hub, Unit A01) status from ACTIVE to EXPIRED` |
+
+Triggers 2-4 are written in the same transaction as the change itself, so a change can never be saved
+without its log entry. Other events (register, property, tenant, billing, lease update) are also logged.
+The Administrator opens the logs from "View System Audit Logs" (all logs, or filtered by User ID).
